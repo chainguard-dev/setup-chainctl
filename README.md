@@ -6,7 +6,7 @@ and authenticates with it using identity tokens.
 ## Usage
 
 ```yaml
-- uses: chainguard-dev/setup-chainctl@main
+- uses: chainguard-dev/setup-chainctl@[VERSION]
   with:
     # the ID of the identity this workload should assume when speaking to Chainguard APIs.
     identity: "..."
@@ -19,7 +19,7 @@ permissions:
   id-token: write
 
 steps:
-- uses: chainguard-dev/setup-chainctl@main
+- uses: chainguard-dev/setup-chainctl@[VERSION]
   with:
     identity: "deadbeef/badf00d"
 ```
