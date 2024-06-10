@@ -1,6 +1,9 @@
 name: Test
 
 on:
+  push:
+    branches:
+      - 'main'
   pull_request:
     branches:
       - 'main'
@@ -11,9 +14,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-latest
+          - macos-latest
+          # - windows-latest TODO(jason): Enable when we install in the correct location.
     runs-on: ${{ matrix.os }}
 
     steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       - uses: ./
       - run: chainctl version

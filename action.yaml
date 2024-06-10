@@ -62,7 +62,11 @@ runs:
 
         arch="${{ runner.arch }}"
         if [[ "${arch}" == "X64" ]]; then
-          arch="amd64"
+          if [[ "${os}" == "windows" ]]; then
+            arch="x86_64"
+          else
+            arch="amd64"
+          fi
         elif [[ "${arch}" == "ARM64" ]]; then
           arch="arm64"
         fi
@@ -75,10 +79,7 @@ runs:
 
         curl -o ./chainctl -fsL "${url}"
         chmod +x ./chainctl
-        CHAINCTL_INSTALL_PATH="${HOME}/.local/bin"
-        mv ./chainctl "${CHAINCTL_INSTALL_PATH}"
-        # Ensure install directory is on the PATH for future steps
-        echo "${CHAINCTL_INSTALL_PATH}" >> "${GITHUB_PATH}"
+        mv ./chainctl /usr/local/bin
 
     - name: Authenticate with Chainguard (assumed identity)
       shell: bash
@@ -117,28 +118,5 @@ runs:
           echo Logged in!
         else
           echo Failed to log in with invite code
-          exit 1
-        fi
-
-    - name: Authenticate with Chainguard (DEPRECATED registered identity)
-      shell: bash
-      if: ${{ inputs.identity == '' && inputs.invite-code == '' }}
-      env:
-        CHAINGUARD_INVITE_CODE: ${{ inputs.invite-code }}
-        CHAINCTL_DEBUG: "true"
-      run: |
-        echo "::warning::The use of registered Github actions identities is deprecated, use assumed identities instead."
-
-        AUDIENCE="${{ inputs.audience }}"
-        if [[ -z "${AUDIENCE}" ]]; then
-          AUDIENCE=issuer.${{ inputs.environment }}
-        fi
-        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
-
-        if chainctl auth login --identity-token "${IDTOKEN}" -v=${{ inputs.verbosity }}; then
-          echo Logged in!
-        else
-          echo No invite code is present!  Failing since registration will not do any good.
-          echo Configure a secret named CHAINGUARD_INVITE_CODE to have this workload register itself.
           exit 1
         fi
