@@ -11,13 +11,16 @@ on:
 jobs:
   test:
     name: Basic Test
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
           - macos-latest
-          # - windows-latest TODO(jason): Enable when we install in the correct location.
+          - windows-latest
     runs-on: ${{ matrix.os }}
 
     steps:
