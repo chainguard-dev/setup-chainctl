@@ -36,7 +36,7 @@ inputs:
 
       Use of invite codes is DEPRECATED, use identity instead.
     required: false
-  
+
   verbosity:
     description: |
       Set the logging verbosity for chainctl. A value of 0 disables
@@ -52,7 +52,7 @@ runs:
       shell: bash
       run: |
         cd $(mktemp -d)
-        wget --quiet -U "GitHub setup-chainctl" -O chainctl "https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${{github.os}}_$(uname -m)"
+        wget --quiet -U "GitHub setup-chainctl" -O chainctl "https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${{ runner.os }}_$(uname -m)"
         CHAINCTL_INSTALL_PATH="${HOME}/.local/bin"
         # Ensure install directory is on the PATH for future steps
         echo "${CHAINCTL_INSTALL_PATH}" >> "${GITHUB_PATH}"
