@@ -67,7 +67,13 @@ runs:
           arch="arm64"
         fi
 
-        curl -o ./chainctl -fsL h"https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${os}_${arch}"
+        url="https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${os}_${arch}"
+        if [[ "${os}" == "windows" ]]; then
+          url="${url}.exe"
+        fi
+        echo "Downloading chainctl from ${url}"
+
+        curl -o ./chainctl -fsL "${url}"
         chmod +x ./chainctl
         CHAINCTL_INSTALL_PATH="${HOME}/.local/bin"
         mv ./chainctl "${CHAINCTL_INSTALL_PATH}"
