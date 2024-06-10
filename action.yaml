@@ -79,7 +79,7 @@ runs:
 
         curl -o ./chainctl -fsL "${url}"
         chmod +x ./chainctl
-        mv ./chainctl /usr/local/bin
+        echo "$(pwd)" >> $GITHUB_PATH
 
     - name: Authenticate with Chainguard (assumed identity)
       shell: bash
