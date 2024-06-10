@@ -11,6 +11,9 @@ on:
 jobs:
   test:
     name: Basic Test
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -23,5 +26,4 @@ jobs:
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       - uses: ./
-      - shell: bash
-        run: chainctl version
+      - run: chainctl version
