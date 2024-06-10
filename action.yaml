@@ -72,13 +72,15 @@ runs:
         fi
 
         url="https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${os}_${arch}"
+        out="chainctl"
         if [[ "${os}" == "windows" ]]; then
           url="${url}.exe"
+          out="${out}.exe"
         fi
         echo "Downloading chainctl from ${url}"
 
-        curl -o ./chainctl -fsL "${url}"
-        chmod +x ./chainctl
+        curl -o ./${out} -fsL "${url}"
+        chmod +x ./${out}
         echo "$(pwd)" >> $GITHUB_PATH
 
     - name: Authenticate with Chainguard (assumed identity)
