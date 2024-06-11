@@ -62,11 +62,7 @@ runs:
 
         arch="${{ runner.arch }}"
         if [[ "${arch}" == "X64" ]]; then
-          if [[ "${os}" == "windows" ]]; then
-            arch="x86_64"
-          else
-            arch="amd64"
-          fi
+          arch="x86_64"
         elif [[ "${arch}" == "ARM64" ]]; then
           arch="arm64"
         fi
