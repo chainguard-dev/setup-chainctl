@@ -84,15 +84,17 @@ runs:
       if: ${{ inputs.identity != '' }}
       env:
         CHAINCTL_DEBUG: "true"
+        VERBOSITY: ${{ inputs.verbosity }}
+        IDENTITY: ${{ inputs.identity }}
       run: |
-        if chainctl auth login --identity "${{ inputs.identity }}" -v=${{ inputs.verbosity }}; then
-          echo Logged in as ${{ inputs.identity }}!
+        if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
+          echo Logged in as ${{ env.IDENTITY }}!
         else
-          echo Unable to assume the identity ${{ inputs.identity }}.
+          echo Unable to assume the identity ${{ env.IDENTITY }}.
           exit 1
         fi
-        if ! chainctl auth configure-docker --identity "${{ inputs.identity }}" -v=${{ inputs.verbosity }}; then
-          echo Unable to register credential helper as ${{ inputs.identity }}.
+        if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
+          echo Unable to register credential helper as ${{ env.IDENTITY }}.
           exit 1
         fi
 
@@ -102,17 +104,20 @@ runs:
       env:
         CHAINGUARD_INVITE_CODE: ${{ inputs.invite-code }}
         CHAINCTL_DEBUG: "true"
+        VERBOSITY: ${{ inputs.verbosity }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        AUDIENCE: ${{ inputs.audience }}
       run: |
         echo "::warning::The use of invite codes with Github actions is deprecated, use assumed identities instead."
 
-        AUDIENCE="${{ inputs.audience }}"
+        AUDIENCE="${{ env.AUDIENCE }}"
         if [[ -z "${AUDIENCE}" ]]; then
-          AUDIENCE=issuer.${{ inputs.environment }}
+          AUDIENCE=issuer.${{ env.ENVIRONMENT }}
         fi
         IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
 
         # This will start failing once the invite code expires, which is why we have the login guard.
-        if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v=${{ inputs.verbosity }}; then
+        if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v=${{ env.VERBOSITY }}; then
           echo Logged in!
         else
           echo Failed to log in with invite code
