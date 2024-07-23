@@ -44,6 +44,13 @@ inputs:
     required: false
     default: 0
 
+  config-path:
+    description: |
+      The location of the chainctl config file to use. These values
+      override the default configuration values in the binary.
+    required: false
+    default: ''
+
 runs:
   using: "composite"
 
@@ -86,6 +93,7 @@ runs:
         CHAINCTL_DEBUG: "true"
         VERBOSITY: ${{ inputs.verbosity }}
         IDENTITY: ${{ inputs.identity }}
+        CHAINCTL_CONFIG: ${{ inputs.config-path }}
       run: |
         if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
           echo Logged in as ${{ env.IDENTITY }}!
