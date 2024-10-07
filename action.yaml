@@ -82,7 +82,7 @@ runs:
         fi
         echo "Downloading chainctl from ${url}"
 
-        curl -o ./${out} -fsL "${url}"
+        curl -o ./${out} -fsL --retry 5 --retry-delay 1 "${url}"
         chmod +x ./${out}
         echo "$(pwd)" >> $GITHUB_PATH
 
