@@ -105,6 +105,7 @@ runs:
           echo Unable to register credential helper as ${{ env.IDENTITY }}.
           exit 1
         fi
+        echo HTTP_AUTH="basic:apk.cgr.dev:user:$(shell chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
 
     - name: Authenticate with Chainguard (DEPRECATED invite-code)
       shell: bash
@@ -131,3 +132,4 @@ runs:
           echo Failed to log in with invite code
           exit 1
         fi
+        echo HTTP_AUTH="basic:apk.cgr.dev:user:$(shell chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
