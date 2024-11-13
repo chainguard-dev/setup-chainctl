@@ -14,6 +14,13 @@ inputs:
     required: true
     default: enforce.dev
 
+  env-auth:
+    description: |
+      Determines if we export HTTP_AUTH env variable with chainctl auth
+      token.
+    required: false
+    default: false
+
   identity:
     description: |
       The id of the identity that this workflow should assume for
@@ -94,6 +101,7 @@ runs:
         VERBOSITY: ${{ inputs.verbosity }}
         IDENTITY: ${{ inputs.identity }}
         CHAINCTL_CONFIG: ${{ inputs.config-path }}
+        EXPORT_AUTH: ${{ inputs.env-auth }}
       run: |
         if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
           echo Logged in as ${{ env.IDENTITY }}!
@@ -105,6 +113,9 @@ runs:
           echo Unable to register credential helper as ${{ env.IDENTITY }}.
           exit 1
         fi
+        if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
+          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(shell chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
+        fi
 
     - name: Authenticate with Chainguard (DEPRECATED invite-code)
       shell: bash
@@ -115,6 +126,7 @@ runs:
         VERBOSITY: ${{ inputs.verbosity }}
         ENVIRONMENT: ${{ inputs.environment }}
         AUDIENCE: ${{ inputs.audience }}
+        EXPORT_AUTH: ${{ inputs.env-auth }}
       run: |
         echo "::warning::The use of invite codes with Github actions is deprecated, use assumed identities instead."
 
@@ -130,4 +142,7 @@ runs:
         else
           echo Failed to log in with invite code
           exit 1
+        fi
+        if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
+          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(shell chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
         fi
