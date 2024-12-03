@@ -58,12 +58,21 @@ inputs:
     required: false
     default: ''
 
+  retry-all-errors:
+    description: |
+      Whether to retry on all errors.
+    required: false
+    default: false
+
+
 runs:
   using: "composite"
 
   steps:
     - name: Install chainctl
       shell: bash
+      env:
+        CURL_RETRY_ALL_ERRORS: ${{ inputs.retry-all-errors }}
       run: |
         cd $(mktemp -d)
 
@@ -89,7 +98,11 @@ runs:
         fi
         echo "Downloading chainctl from ${url}"
 
-        curl -o ./${out} -fsL --retry 5 --retry-delay 1 "${url}"
+        if [[ "${{ env.CURL_RETRY_ALL_ERRORS }}" != "true" ]]; then
+          curl -o ./${out} -fsL --retry 5 --retry-delay 1 "${url}"
+        else
+          curl -o ./${out} -fsL --retry 5 --retry-delay 1 --retry-all-errors "${url}"
+        fi
         chmod +x ./${out}
         echo "$(pwd)" >> $GITHUB_PATH
 
