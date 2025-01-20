@@ -122,6 +122,10 @@ runs:
           echo Unable to assume the identity ${{ env.IDENTITY }}.
           exit 1
         fi
+        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience apk.cgr.dev -v=${{ env.VERBOSITY }}; then
+          echo Unable to assume the identity ${{ env.IDENTITY }} for apk.cgr.dev.
+          exit 1
+        fi
         if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
           echo Unable to register credential helper as ${{ env.IDENTITY }}.
           exit 1
