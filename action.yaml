@@ -1,7 +1,7 @@
 # Copyright 2022 Chainguard, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-name: 'Setup chainctl'
+name: "Setup chainctl"
 description: |
   This action sets up the Chainguard chainctl CLI and authenticates
   it against the target environment.
@@ -56,14 +56,13 @@ inputs:
       The location of the chainctl config file to use. These values
       override the default configuration values in the binary.
     required: false
-    default: ''
+    default: ""
 
   retry-all-errors:
     description: |
       Whether to retry on all errors.
     required: false
     default: false
-
 
 runs:
   using: "composite"
@@ -131,7 +130,7 @@ runs:
           exit 1
         fi
         if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(shell chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
+          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
         fi
 
     - name: Authenticate with Chainguard (DEPRECATED invite-code)
@@ -161,5 +160,5 @@ runs:
           exit 1
         fi
         if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(shell chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
+          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
         fi
