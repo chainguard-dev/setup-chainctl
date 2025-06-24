@@ -60,9 +60,9 @@ inputs:
 
   retry-all-errors:
     description: |
-      Whether to retry on all errors.
+      Whether to retry on errors downloading the chainctl binary.
     required: false
-    default: false
+    default: true
 
 runs:
   using: "composite"
