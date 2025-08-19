@@ -121,22 +121,33 @@ runs:
         CHAINCTL_CONFIG: ${{ inputs.config-path }}
         EXPORT_AUTH: ${{ inputs.env-auth }}
       run: |
+        echo "::group::Authenticating with Chainguard as ${{ env.IDENTITY }}"
         if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
           echo Logged in as ${{ env.IDENTITY }}!
         else
-          echo Unable to assume the identity ${{ env.IDENTITY }}.
+          echo "::error Unable to assume the identity ${{ env.IDENTITY }}."
           exit 1
         fi
+        echo "::endgroup::"
+
+        echo "::group::Authenticating with apk.cgr.dev as ${{ env.IDENTITY }}"
         if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.apk-host }} -v=${{ env.VERBOSITY }}; then
-          echo Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.apk-host }}.
+          echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.apk-host }}."
           exit 1
         fi
+        echo "::endgroup::"
+
+        echo "::group::Registering docker credential helper"
         if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
-          echo Unable to register credential helper as ${{ env.IDENTITY }}.
+          echo "::error Unable to register credential helper as ${{ env.IDENTITY }}."
           exit 1
         fi
+        echo "::endgroup::"
+
         if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
+          echo "::group::Exporting HTTP_AUTH environment variable for ${{ inputs.apk-host }}"
+          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
+          echo "::endgroup::"
         fi
 
     - name: Authenticate with Chainguard (DEPRECATED invite-code)
