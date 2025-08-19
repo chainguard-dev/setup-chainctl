@@ -64,6 +64,12 @@ inputs:
     required: false
     default: true
 
+  apk-host:
+    description: |
+      The hostname to authenticate against for APK-related authentication.
+    required: false
+    default: apk.cgr.dev
+
 runs:
   using: "composite"
 
@@ -121,8 +127,8 @@ runs:
           echo Unable to assume the identity ${{ env.IDENTITY }}.
           exit 1
         fi
-        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience apk.cgr.dev -v=${{ env.VERBOSITY }}; then
-          echo Unable to assume the identity ${{ env.IDENTITY }} for apk.cgr.dev.
+        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.apk-host }} -v=${{ env.VERBOSITY }}; then
+          echo Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.apk-host }}.
           exit 1
         fi
         if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
@@ -130,7 +136,7 @@ runs:
           exit 1
         fi
         if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
+          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
         fi
 
     - name: Authenticate with Chainguard (DEPRECATED invite-code)
@@ -160,5 +166,5 @@ runs:
           exit 1
         fi
         if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:apk.cgr.dev:user:$(chainctl auth token --audience apk.cgr.dev)" >> $GITHUB_ENV
+          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
         fi
