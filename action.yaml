@@ -70,6 +70,14 @@ inputs:
     required: false
     default: apk.cgr.dev
 
+  install-only:
+    description: |
+      Only download the chainctl binary for the appropriate environment.
+      Do not authenticate. It is the responsibility of callers to later
+      call `chainctl auth login`.
+    required: false
+    default: false
+
 runs:
   using: "composite"
 
@@ -113,7 +121,7 @@ runs:
 
     - name: Authenticate with Chainguard (assumed identity)
       shell: bash
-      if: ${{ inputs.identity != '' }}
+      if: ${{ inputs.identity != '' && !inputs.install-only }}
       env:
         CHAINCTL_DEBUG: "true"
         VERBOSITY: ${{ inputs.verbosity }}
@@ -152,7 +160,7 @@ runs:
 
     - name: Authenticate with Chainguard (DEPRECATED invite-code)
       shell: bash
-      if: ${{ inputs.invite-code != '' }}
+      if: ${{ inputs.invite-code != '' && !inputs.install-only }}
       env:
         CHAINGUARD_INVITE_CODE: ${{ inputs.invite-code }}
         CHAINCTL_DEBUG: "true"
