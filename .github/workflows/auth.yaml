@@ -1,0 +1,30 @@
+name: Test with auth
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request_target:
+    branches:
+      - 'main'
+
+jobs:
+  test:
+    name: Test with auth
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # Needed for auth
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: ./
+        with:
+          identity: TODO
+      - run: chainctl version
