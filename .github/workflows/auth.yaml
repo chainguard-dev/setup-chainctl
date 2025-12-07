@@ -26,5 +26,5 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       - uses: ./
         with:
-          identity: TODO
-      - run: chainctl version
+          identity: ce2d1984a010471142503340d670612d63ffb9f6/d05d31ba65ec54d1
+      - run: chainctl auth status
