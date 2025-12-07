@@ -70,6 +70,19 @@ inputs:
     required: false
     default: apk.cgr.dev
 
+  libraries-host:
+    description: |
+      The hostname to authenticate against for Chainguard Libraries-related
+      authentication.
+    required: false
+    default: libraries.cgr.dev
+
+  setup-python-keyring:
+    description: |
+      Whether to install the Chainguard Libraries pip keyring package.
+    required: false
+    default: false
+
 runs:
   using: "composite"
 
@@ -130,6 +143,13 @@ runs:
         fi
         echo "::endgroup::"
 
+        echo "::group::Authenticating with ${{ inputs.libraries-host }} as ${{ env.IDENTITY }}"
+        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.libraries-host }} -v=${{ env.VERBOSITY }}; then
+          echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.libraries-host }}."
+          exit 1
+        fi
+        echo "::endgroup::"
+
         echo "::group::Authenticating with ${{ inputs.apk-host }} as ${{ env.IDENTITY }}"
         if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.apk-host }} -v=${{ env.VERBOSITY }}; then
           echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.apk-host }}."
@@ -179,3 +199,9 @@ runs:
         if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
           echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
         fi
+
+    - if: ${{ inputs.setup-python-keyring }}
+      name: Install Python keyring package
+      shell: bash
+      run: |
+        python -m pip install "keyrings-chainguard-libraries"
