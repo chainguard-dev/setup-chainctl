@@ -1,32 +1,21 @@
-name: Test
+name: Test with auth
 
 on:
   push:
     branches:
       - 'main'
-  pull_request:
+  pull_request_target:
     branches:
       - 'main'
 
-permissions: {}
-
 jobs:
   test:
-    name: Basic Test
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-    runs-on: ${{ matrix.os }}
+    name: Test with auth
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
+      id-token: write # Needed for auth
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -36,4 +25,6 @@ jobs:
 
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       - uses: ./
-      - run: chainctl version
+        with:
+          identity: ce2d1984a010471142503340d670612d63ffb9f6/d05d31ba65ec54d1
+      - run: chainctl auth status
