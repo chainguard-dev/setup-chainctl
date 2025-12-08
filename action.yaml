@@ -200,7 +200,7 @@ runs:
           echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
         fi
 
-    - if: ${{ inputs.setup-python-keyring }}
+    - if: ${{ inputs.setup-python-keyring == 'true' }}
       name: Install Python keyring package
       shell: bash
       run: |
