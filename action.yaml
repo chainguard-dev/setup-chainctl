@@ -135,7 +135,7 @@ runs:
         EXPORT_AUTH: ${{ inputs.env-auth }}
       run: |
         echo "::group::Authenticating with Chainguard as ${{ env.IDENTITY }}"
-        if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
+        if chainctl auth login --headless --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
           echo Logged in as ${{ env.IDENTITY }}!
         else
           echo "::error Unable to assume the identity ${{ env.IDENTITY }}."
@@ -158,7 +158,7 @@ runs:
         echo "::endgroup::"
 
         echo "::group::Registering docker credential helper"
-        if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
+        if ! chainctl auth configure-docker --headless --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
           echo "::error Unable to register credential helper as ${{ env.IDENTITY }}."
           exit 1
         fi
