@@ -19,7 +19,7 @@ inputs:
       Determines if we export HTTP_AUTH env variable with chainctl auth
       token.
     required: false
-    default: false
+    default: "false"
 
   identity:
     description: |
@@ -49,7 +49,7 @@ inputs:
       Set the logging verbosity for chainctl. A value of 0 disables
       logging output. Valid values are 1-5, increasing in verbosity.
     required: false
-    default: 0
+    default: "0"
 
   config-path:
     description: |
@@ -62,7 +62,7 @@ inputs:
     description: |
       Whether to retry on errors downloading the chainctl binary.
     required: false
-    default: true
+    default: "true"
 
   apk-host:
     description: |
@@ -81,7 +81,7 @@ inputs:
     description: |
       Whether to install the Chainguard Libraries pip keyring package.
     required: false
-    default: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -123,6 +123,9 @@ runs:
         fi
         chmod +x ./${out}
         echo "$(pwd)" >> $GITHUB_PATH
+
+        # Print the version of chainctl installed
+        ./${out} version
 
     - name: Authenticate with Chainguard (assumed identity)
       shell: bash
