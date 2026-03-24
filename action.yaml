@@ -6,6 +6,10 @@ description: |
   This action sets up the Chainguard chainctl CLI and authenticates
   it against the target environment.
 
+branding:
+  icon: "terminal"
+  color: "purple"
+
 inputs:
   environment:
     description: |
