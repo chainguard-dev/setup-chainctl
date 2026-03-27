@@ -139,9 +139,11 @@ runs:
           actual=$(sha256sum "./${out}" | awk '{print $1}')
         elif command -v shasum &>/dev/null; then
           actual=$(shasum -a 256 "./${out}" | awk '{print $1}')
+        elif command -v powershell &>/dev/null; then
+          actual=$(powershell -Command "(Get-FileHash -Algorithm SHA256 './${out}').Hash.ToLower()")
         else
-          echo "::warning::No sha256 tool available, skipping checksum verification"
-          actual="${expected}"
+          echo "::error::No sha256 tool available (tried sha256sum, shasum, PowerShell Get-FileHash)"
+          exit 1
         fi
         if [[ "${expected}" != "${actual}" ]]; then
           echo "::error::Checksum mismatch for chainctl: expected ${expected}, got ${actual}"
