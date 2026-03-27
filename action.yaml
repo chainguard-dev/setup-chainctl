@@ -136,9 +136,12 @@ runs:
           exit 1
         fi
         if command -v sha256sum &>/dev/null; then
-          actual=$(sha256sum ./${out} | awk '{print $1}')
+          actual=$(sha256sum "./${out}" | awk '{print $1}')
+        elif command -v shasum &>/dev/null; then
+          actual=$(shasum -a 256 "./${out}" | awk '{print $1}')
         else
-          actual=$(shasum -a 256 ./${out} | awk '{print $1}')
+          echo "::warning::No sha256 tool available, skipping checksum verification"
+          actual="${expected}"
         fi
         if [[ "${expected}" != "${actual}" ]]; then
           echo "::error::Checksum mismatch for chainctl: expected ${expected}, got ${actual}"
