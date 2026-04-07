@@ -95,6 +95,7 @@ runs:
       shell: bash
       env:
         CURL_RETRY_ALL_ERRORS: ${{ inputs.retry-all-errors }}
+        ENVIRONMENT: ${{ inputs.environment }}
       run: |
         cd $(mktemp -d)
 
@@ -112,7 +113,7 @@ runs:
           arch="arm64"
         fi
 
-        url="https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${os}_${arch}"
+        url="https://dl.${ENVIRONMENT}/chainctl/latest/chainctl_${os}_${arch}"
         out="chainctl"
         if [[ "${os}" == "windows" ]]; then
           url="${url}.exe"
@@ -127,7 +128,7 @@ runs:
         fi
 
         # Verify chainctl binary checksum
-        checksums_url="https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_checksums.txt"
+        checksums_url="https://dl.${ENVIRONMENT}/chainctl/latest/chainctl_checksums.txt"
         echo "Downloading checksums from ${checksums_url}"
         curl -o checksums.txt -fsL --retry 3 --retry-delay 1 "${checksums_url}"
         expected=$(grep "chainctl_${os}_${arch}" checksums.txt | awk '{print $1}')
