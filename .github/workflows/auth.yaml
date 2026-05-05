@@ -33,6 +33,8 @@ jobs:
             issuer.enforce.dev:443
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./
         with:
           identity: ce2d1984a010471142503340d670612d63ffb9f6/d05d31ba65ec54d1

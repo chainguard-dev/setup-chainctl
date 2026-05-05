@@ -95,24 +95,26 @@ runs:
       shell: bash
       env:
         CURL_RETRY_ALL_ERRORS: ${{ inputs.retry-all-errors }}
+        ENVIRONMENT: ${{ inputs.environment }}
       run: |
-        cd $(mktemp -d)
+        cd "$(mktemp -d)" || exit
 
         # Massage GitHub's values to the ones we expect.
         # https://docs.github.com/en/actions/learn-github-actions/contexts#runner-context
-        os=$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]')
+        # RUNNER_OS and RUNNER_ARCH are set automatically by the GitHub Actions runner.
+        os=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
         if [[ "${os}" == "macos" ]]; then
           os="darwin"
         fi
 
-        arch="${{ runner.arch }}"
+        arch="$RUNNER_ARCH"
         if [[ "${arch}" == "X64" ]]; then
           arch="x86_64"
         elif [[ "${arch}" == "ARM64" ]]; then
           arch="arm64"
         fi
 
-        url="https://dl.${{ inputs.environment }}/chainctl/latest/chainctl_${os}_${arch}"
+        url="https://dl.${ENVIRONMENT}/chainctl/latest/chainctl_${os}_${arch}"
         out="chainctl"
         if [[ "${os}" == "windows" ]]; then
           url="${url}.exe"
@@ -120,13 +122,13 @@ runs:
         fi
         echo "Downloading chainctl from ${url}"
 
-        if [[ "${{ env.CURL_RETRY_ALL_ERRORS }}" != "true" ]]; then
+        if [[ "$CURL_RETRY_ALL_ERRORS" != "true" ]]; then
           curl -o ./${out} -fsL --retry 5 --retry-delay 1 "${url}"
         else
           curl -o ./${out} -fsL --retry 5 --retry-delay 1 --retry-all-errors "${url}"
         fi
         chmod +x ./${out}
-        echo "$(pwd)" >> $GITHUB_PATH
+        echo "$(pwd)" >> "$GITHUB_PATH"
 
         # Print the version of chainctl installed
         ./${out} version
@@ -140,40 +142,42 @@ runs:
         IDENTITY: ${{ inputs.identity }}
         CHAINCTL_CONFIG: ${{ inputs.config-path }}
         EXPORT_AUTH: ${{ inputs.env-auth }}
+        LIBRARIES_HOST: ${{ inputs.libraries-host }}
+        APK_HOST: ${{ inputs.apk-host }}
       run: |
-        echo "::group::Authenticating with Chainguard as ${{ env.IDENTITY }}"
-        if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
-          echo Logged in as ${{ env.IDENTITY }}!
+        echo "::group::Authenticating with Chainguard as $IDENTITY"
+        if chainctl auth login --identity "$IDENTITY" -v="$VERBOSITY"; then
+          echo Logged in as "$IDENTITY"!
         else
-          echo "::error Unable to assume the identity ${{ env.IDENTITY }}."
+          echo "::error Unable to assume the identity $IDENTITY."
           exit 1
         fi
         echo "::endgroup::"
 
-        echo "::group::Authenticating with ${{ inputs.libraries-host }} as ${{ env.IDENTITY }}"
-        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.libraries-host }} -v=${{ env.VERBOSITY }}; then
-          echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.libraries-host }}."
+        echo "::group::Authenticating with $LIBRARIES_HOST as $IDENTITY"
+        if ! chainctl auth login --identity "$IDENTITY" --audience "$LIBRARIES_HOST" -v="$VERBOSITY"; then
+          echo "::error Unable to assume the identity $IDENTITY for $LIBRARIES_HOST."
           exit 1
         fi
         echo "::endgroup::"
 
-        echo "::group::Authenticating with ${{ inputs.apk-host }} as ${{ env.IDENTITY }}"
-        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.apk-host }} -v=${{ env.VERBOSITY }}; then
-          echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.apk-host }}."
+        echo "::group::Authenticating with $APK_HOST as $IDENTITY"
+        if ! chainctl auth login --identity "$IDENTITY" --audience "$APK_HOST" -v="$VERBOSITY"; then
+          echo "::error Unable to assume the identity $IDENTITY for $APK_HOST."
           exit 1
         fi
         echo "::endgroup::"
 
         echo "::group::Registering docker credential helper"
-        if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
-          echo "::error Unable to register credential helper as ${{ env.IDENTITY }}."
+        if ! chainctl auth configure-docker --identity "$IDENTITY" -v="$VERBOSITY"; then
+          echo "::error Unable to register credential helper as $IDENTITY."
           exit 1
         fi
         echo "::endgroup::"
 
-        if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo "::group::Exporting HTTP_AUTH environment variable for ${{ inputs.apk-host }}"
-          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
+        if [ "$EXPORT_AUTH" == "true" ]; then
+          echo "::group::Exporting HTTP_AUTH environment variable for $APK_HOST"
+          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "$APK_HOST")" >> "$GITHUB_ENV"
           echo "::endgroup::"
         fi
 
@@ -187,24 +191,25 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
         AUDIENCE: ${{ inputs.audience }}
         EXPORT_AUTH: ${{ inputs.env-auth }}
+        APK_HOST: ${{ inputs.apk-host }}
       run: |
         echo "::warning::The use of invite codes with Github actions is deprecated, use assumed identities instead."
 
-        AUDIENCE="${{ env.AUDIENCE }}"
-        if [[ -z "${AUDIENCE}" ]]; then
-          AUDIENCE=issuer.${{ env.ENVIRONMENT }}
+        AUDIENCE_VAL="$AUDIENCE"
+        if [[ -z "${AUDIENCE_VAL}" ]]; then
+          AUDIENCE_VAL="issuer.${ENVIRONMENT}"
         fi
-        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
+        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE_VAL}" | jq -r '.value')
 
         # This will start failing once the invite code expires, which is why we have the login guard.
-        if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v=${{ env.VERBOSITY }}; then
+        if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v="$VERBOSITY"; then
           echo Logged in!
         else
           echo Failed to log in with invite code
           exit 1
         fi
-        if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
+        if [ "$EXPORT_AUTH" == "true" ]; then
+          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "$APK_HOST")" >> "$GITHUB_ENV"
         fi
 
     - if: ${{ inputs.setup-python-keyring == 'true' }}
