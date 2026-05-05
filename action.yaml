@@ -97,7 +97,7 @@ runs:
         CURL_RETRY_ALL_ERRORS: ${{ inputs.retry-all-errors }}
         ENVIRONMENT: ${{ inputs.environment }}
       run: |
-        cd $(mktemp -d)
+        cd "$(mktemp -d)" || exit
 
         # Massage GitHub's values to the ones we expect.
         # https://docs.github.com/en/actions/learn-github-actions/contexts#runner-context
@@ -128,7 +128,7 @@ runs:
           curl -o ./${out} -fsL --retry 5 --retry-delay 1 --retry-all-errors "${url}"
         fi
         chmod +x ./${out}
-        echo "$(pwd)" >> $GITHUB_PATH
+        echo "$(pwd)" >> "$GITHUB_PATH"
 
         # Print the version of chainctl installed
         ./${out} version
@@ -177,7 +177,7 @@ runs:
 
         if [ "$EXPORT_AUTH" == "true" ]; then
           echo "::group::Exporting HTTP_AUTH environment variable for $APK_HOST"
-          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "$APK_HOST")" >> $GITHUB_ENV
+          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "$APK_HOST")" >> "$GITHUB_ENV"
           echo "::endgroup::"
         fi
 
@@ -209,7 +209,7 @@ runs:
           exit 1
         fi
         if [ "$EXPORT_AUTH" == "true" ]; then
-          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "$APK_HOST")" >> $GITHUB_ENV
+          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "$APK_HOST")" >> "$GITHUB_ENV"
         fi
 
     - if: ${{ inputs.setup-python-keyring == 'true' }}
