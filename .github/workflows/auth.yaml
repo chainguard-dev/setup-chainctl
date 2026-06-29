@@ -35,6 +35,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          allow-unsafe-pr-checkout: true
       - uses: ./
         with:
           identity: ce2d1984a010471142503340d670612d63ffb9f6/d05d31ba65ec54d1
