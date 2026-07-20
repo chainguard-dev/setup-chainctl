@@ -2,8 +2,9 @@
 
 [![Test](https://github.com/chainguard-dev/setup-chainctl/actions/workflows/test.yaml/badge.svg)](https://github.com/chainguard-dev/setup-chainctl/actions/workflows/test.yaml)
 
-This action installs the latest `chainctl` binary for a particular environment
-and authenticates with it using identity tokens.
+This action installs the `chainctl` binary for a particular environment
+and authenticates with it using identity tokens. By default it installs
+the latest release; pass `version` to pin a specific one.
 
 ## Usage
 
@@ -12,6 +13,8 @@ and authenticates with it using identity tokens.
   with:
     # the ID of the identity this workload should assume when speaking to Chainguard APIs.
     identity: "..."
+    # optionally pin the chainctl version to install (defaults to latest)
+    # version: "0.2.313"
 ```
 
 ## Scenarios

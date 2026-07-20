@@ -18,6 +18,13 @@ inputs:
     required: true
     default: enforce.dev
 
+  version:
+    description: |
+      The version of chainctl to install (e.g. 0.2.313). Defaults to
+      the latest release.
+    required: false
+    default: latest
+
   env-auth:
     description: |
       Determines if we export HTTP_AUTH env variable with chainctl auth
@@ -96,6 +103,7 @@ runs:
       env:
         CURL_RETRY_ALL_ERRORS: ${{ inputs.retry-all-errors }}
         ENVIRONMENT: ${{ inputs.environment }}
+        VERSION: ${{ inputs.version }}
       run: |
         cd $(mktemp -d)
 
@@ -113,44 +121,80 @@ runs:
           arch="arm64"
         fi
 
-        url="https://dl.${ENVIRONMENT}/chainctl/latest/chainctl_${os}_${arch}"
+        file="chainctl_${os}_${arch}"
         out="chainctl"
         if [[ "${os}" == "windows" ]]; then
-          url="${url}.exe"
+          file="${file}.exe"
           out="${out}.exe"
         fi
-        echo "Downloading chainctl from ${url}"
 
-        if [[ "${{ env.CURL_RETRY_ALL_ERRORS }}" != "true" ]]; then
-          curl -o ./${out} -fsL --retry 5 --retry-delay 1 "${url}"
-        else
-          curl -o ./${out} -fsL --retry 5 --retry-delay 1 --retry-all-errors "${url}"
+        # An empty version means the latest release; accept an optional
+        # leading "v" (dl.* paths use bare version numbers).
+        VERSION="${VERSION:-latest}"
+        VERSION="${VERSION#v}"
+
+        base_url="https://dl.${ENVIRONMENT}/chainctl/${VERSION}"
+        checksums_url="${base_url}/chainctl_checksums.txt"
+        url="${base_url}/${file}"
+
+        curl_flags=(-fsL --retry 5 --retry-delay 1)
+        if [[ "${CURL_RETRY_ALL_ERRORS}" == "true" ]]; then
+          curl_flags+=(--retry-all-errors)
         fi
 
-        # Verify chainctl binary checksum
-        checksums_url="https://dl.${ENVIRONMENT}/chainctl/latest/chainctl_checksums.txt"
+        # Sets ${expected} to the published checksum for ${file}. Re-invoked
+        # on mismatch: a release promoted between the checksum and binary
+        # fetches makes the pair inconsistent, and one refresh re-syncs it.
+        fetch_expected() {
+          if ! curl -o checksums.txt "${curl_flags[@]}" "${checksums_url}"; then
+            echo "::error::Failed to download ${checksums_url}; cannot verify chainctl"
+            exit 1
+          fi
+          expected=$(awk -v file="${file}" '$2 == file {print $1}' checksums.txt)
+          if [[ -z "${expected}" ]]; then
+            echo "::error::No checksum found for ${file} in checksums.txt"
+            exit 1
+          fi
+        }
+
+        # Fetch the expected checksum first so a missing entry fails fast,
+        # before the binary download.
         echo "Downloading checksums from ${checksums_url}"
-        curl -o checksums.txt -fsL --retry 3 --retry-delay 1 "${checksums_url}"
-        expected=$(grep "chainctl_${os}_${arch}" checksums.txt | awk '{print $1}')
-        if [[ -z "${expected}" ]]; then
-          echo "::error::No checksum found for chainctl_${os}_${arch} in checksums.txt"
-          exit 1
-        fi
+        fetch_expected
+
+        echo "Downloading chainctl from ${url}"
+        curl -o ./${out} "${curl_flags[@]}" "${url}"
+
+        # Compute the binary's checksum. PowerShell emits CRLF line endings;
+        # bash's $() strips only the LF, so drop the CR too or the comparison
+        # below can never match.
         if command -v sha256sum &>/dev/null; then
           actual=$(sha256sum "./${out}" | awk '{print $1}')
         elif command -v shasum &>/dev/null; then
           actual=$(shasum -a 256 "./${out}" | awk '{print $1}')
+        elif command -v pwsh &>/dev/null; then
+          actual=$(pwsh -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath './${out}').Hash.ToLower()" | tr -d '\r')
         elif command -v powershell &>/dev/null; then
-          actual=$(powershell -Command "(Get-FileHash -Algorithm SHA256 './${out}').Hash.ToLower()")
+          actual=$(powershell -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath './${out}').Hash.ToLower()" | tr -d '\r')
         else
-          echo "::error::No sha256 tool available (tried sha256sum, shasum, PowerShell Get-FileHash)"
+          echo "::error::No sha256 tool available (tried sha256sum, shasum, pwsh, powershell)"
           exit 1
+        fi
+        if [[ -z "${actual}" ]]; then
+          echo "::error::Failed to compute the sha256 checksum of ${out}"
+          exit 1
+        fi
+
+        if [[ "${expected}" != "${actual}" ]]; then
+          echo "Checksum mismatch for ${file}; refreshing checksums and retrying once"
+          fetch_expected
         fi
         if [[ "${expected}" != "${actual}" ]]; then
-          echo "::error::Checksum mismatch for chainctl: expected ${expected}, got ${actual}"
+          echo "::error::Checksum mismatch for ${file}: expected ${expected}, got ${actual}"
           exit 1
         fi
-        echo "Checksum verified for chainctl_${os}_${arch}"
+        echo "Checksum verified for ${file}"
+        rm -f checksums.txt
 
         chmod +x ./${out}
         echo "$(pwd)" >> $GITHUB_PATH
@@ -167,40 +211,42 @@ runs:
         IDENTITY: ${{ inputs.identity }}
         CHAINCTL_CONFIG: ${{ inputs.config-path }}
         EXPORT_AUTH: ${{ inputs.env-auth }}
+        LIBRARIES_HOST: ${{ inputs.libraries-host }}
+        APK_HOST: ${{ inputs.apk-host }}
       run: |
-        echo "::group::Authenticating with Chainguard as ${{ env.IDENTITY }}"
-        if chainctl auth login --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
-          echo Logged in as ${{ env.IDENTITY }}!
+        echo "::group::Authenticating with Chainguard as ${IDENTITY}"
+        if chainctl auth login --identity "${IDENTITY}" -v="${VERBOSITY}"; then
+          echo "Logged in as ${IDENTITY}!"
         else
-          echo "::error Unable to assume the identity ${{ env.IDENTITY }}."
+          echo "::error::Unable to assume the identity ${IDENTITY}."
           exit 1
         fi
         echo "::endgroup::"
 
-        echo "::group::Authenticating with ${{ inputs.libraries-host }} as ${{ env.IDENTITY }}"
-        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.libraries-host }} -v=${{ env.VERBOSITY }}; then
-          echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.libraries-host }}."
+        echo "::group::Authenticating with ${LIBRARIES_HOST} as ${IDENTITY}"
+        if ! chainctl auth login --identity "${IDENTITY}" --audience "${LIBRARIES_HOST}" -v="${VERBOSITY}"; then
+          echo "::error::Unable to assume the identity ${IDENTITY} for ${LIBRARIES_HOST}."
           exit 1
         fi
         echo "::endgroup::"
 
-        echo "::group::Authenticating with ${{ inputs.apk-host }} as ${{ env.IDENTITY }}"
-        if ! chainctl auth login --identity "${{ env.IDENTITY }}" --audience ${{ inputs.apk-host }} -v=${{ env.VERBOSITY }}; then
-          echo "::error Unable to assume the identity ${{ env.IDENTITY }} for ${{ inputs.apk-host }}."
+        echo "::group::Authenticating with ${APK_HOST} as ${IDENTITY}"
+        if ! chainctl auth login --identity "${IDENTITY}" --audience "${APK_HOST}" -v="${VERBOSITY}"; then
+          echo "::error::Unable to assume the identity ${IDENTITY} for ${APK_HOST}."
           exit 1
         fi
         echo "::endgroup::"
 
         echo "::group::Registering docker credential helper"
-        if ! chainctl auth configure-docker --identity "${{ env.IDENTITY }}" -v=${{ env.VERBOSITY }}; then
-          echo "::error Unable to register credential helper as ${{ env.IDENTITY }}."
+        if ! chainctl auth configure-docker --identity "${IDENTITY}" -v="${VERBOSITY}"; then
+          echo "::error::Unable to register credential helper as ${IDENTITY}."
           exit 1
         fi
         echo "::endgroup::"
 
-        if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo "::group::Exporting HTTP_AUTH environment variable for ${{ inputs.apk-host }}"
-          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
+        if [ "${EXPORT_AUTH}" == "true" ]; then
+          echo "::group::Exporting HTTP_AUTH environment variable for ${APK_HOST}"
+          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "${APK_HOST}")" >> $GITHUB_ENV
           echo "::endgroup::"
         fi
 
@@ -214,24 +260,24 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
         AUDIENCE: ${{ inputs.audience }}
         EXPORT_AUTH: ${{ inputs.env-auth }}
+        APK_HOST: ${{ inputs.apk-host }}
       run: |
         echo "::warning::The use of invite codes with Github actions is deprecated, use assumed identities instead."
 
-        AUDIENCE="${{ env.AUDIENCE }}"
         if [[ -z "${AUDIENCE}" ]]; then
-          AUDIENCE=issuer.${{ env.ENVIRONMENT }}
+          AUDIENCE="issuer.${ENVIRONMENT}"
         fi
         IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
 
         # This will start failing once the invite code expires, which is why we have the login guard.
-        if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v=${{ env.VERBOSITY }}; then
+        if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v="${VERBOSITY}"; then
           echo Logged in!
         else
           echo Failed to log in with invite code
           exit 1
         fi
-        if [ "${{ env.EXPORT_AUTH }}" == "true" ]; then
-          echo HTTP_AUTH="basic:${{ inputs.apk-host }}:user:$(chainctl auth token --audience ${{ inputs.apk-host }})" >> $GITHUB_ENV
+        if [ "${EXPORT_AUTH}" == "true" ]; then
+          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "${APK_HOST}")" >> $GITHUB_ENV
         fi
 
     - if: ${{ inputs.setup-python-keyring == 'true' }}

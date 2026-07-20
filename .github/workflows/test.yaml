@@ -35,5 +35,64 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./
       - run: chainctl version
+
+  test-options:
+    name: Test with non-default options
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          retry-all-errors: 'false'
+          setup-python-keyring: 'true'
+          version: '0.2.313'
+      - run: chainctl version
+      - run: chainctl version 2>&1 | grep -E 'GitVersion:[[:space:]]+0\.2\.313'
+      - run: python -m pip show keyrings-chainguard-libraries
+
+  test-windows-hash-fallback:
+    name: Test PowerShell hash fallback parity
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      # The action's PowerShell fallback never runs on hosted runners
+      # (Git Bash provides sha256sum), so exercise the exact fallback
+      # pipeline here and require byte-for-byte parity with sha256sum.
+      - name: Compare sha256sum, pwsh, and powershell outputs
+        run: |
+          printf 'chainctl fallback parity probe' > probe.bin
+          via_sha256sum=$(sha256sum ./probe.bin | awk '{print $1}')
+          via_pwsh=$(pwsh -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath './probe.bin').Hash.ToLower()" | tr -d '\r')
+          via_powershell=$(powershell -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath './probe.bin').Hash.ToLower()" | tr -d '\r')
+          [[ -n "${via_sha256sum}" ]]
+          [[ "${via_sha256sum}" == "${via_pwsh}" ]]
+          [[ "${via_sha256sum}" == "${via_powershell}" ]]
