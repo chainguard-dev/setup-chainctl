@@ -49,3 +49,80 @@ jobs:
           persist-credentials: false
       - uses: ./
       - run: chainctl version
+
+  test-options:
+    name: Test with non-default options
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            *.blob.core.windows.net:443
+            *.githubapp.com:443
+            c.pki.goog:80
+            dl.enforce.dev:443
+            files.pythonhosted.org:443
+            github.com:443
+            o.pki.goog:80
+            ocsp.pki.goog:80
+            ocsp.sectigo.com:80
+            pypi.org:443
+            updates.cdn-apple.com:443
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          retry-all-errors: 'false'
+          setup-python-keyring: 'true'
+          version: '0.2.313'
+      - run: chainctl version
+      - run: chainctl version 2>&1 | grep -E 'GitVersion:[[:space:]]+0\.2\.313'
+      - run: python -m pip show keyrings-chainguard-libraries
+
+  test-windows-hash-fallback:
+    name: Test PowerShell hash fallback parity
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            *.blob.core.windows.net:443
+            *.githubapp.com:443
+            c.pki.goog:80
+            github.com:443
+            o.pki.goog:80
+            ocsp.pki.goog:80
+            ocsp.sectigo.com:80
+
+      # The action's PowerShell fallback never runs on hosted runners
+      # (Git Bash provides sha256sum), so exercise the exact fallback
+      # pipeline here and require byte-for-byte parity with sha256sum.
+      - name: Compare sha256sum, pwsh, and powershell outputs
+        run: |
+          printf 'chainctl fallback parity probe' > probe.bin
+          via_sha256sum=$(sha256sum ./probe.bin | awk '{print $1}')
+          via_pwsh=$(pwsh -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath './probe.bin').Hash.ToLower()" | tr -d '\r')
+          via_powershell=$(powershell -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath './probe.bin').Hash.ToLower()" | tr -d '\r')
+          [[ -n "${via_sha256sum}" ]]
+          [[ "${via_sha256sum}" == "${via_pwsh}" ]]
+          [[ "${via_sha256sum}" == "${via_powershell}" ]]
