@@ -105,16 +105,17 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
         VERSION: ${{ inputs.version }}
       run: |
-        cd $(mktemp -d)
+        cd "$(mktemp -d)" || exit
 
         # Massage GitHub's values to the ones we expect.
         # https://docs.github.com/en/actions/learn-github-actions/contexts#runner-context
-        os=$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]')
+        # RUNNER_OS and RUNNER_ARCH are set automatically by the GitHub Actions runner.
+        os=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
         if [[ "${os}" == "macos" ]]; then
           os="darwin"
         fi
 
-        arch="${{ runner.arch }}"
+        arch="$RUNNER_ARCH"
         if [[ "${arch}" == "X64" ]]; then
           arch="x86_64"
         elif [[ "${arch}" == "ARM64" ]]; then
@@ -197,7 +198,7 @@ runs:
         rm -f checksums.txt
 
         chmod +x ./${out}
-        echo "$(pwd)" >> $GITHUB_PATH
+        echo "$(pwd)" >> "$GITHUB_PATH"
 
         # Print the version of chainctl installed
         ./${out} version
@@ -267,7 +268,7 @@ runs:
         if [[ -z "${AUDIENCE}" ]]; then
           AUDIENCE="issuer.${ENVIRONMENT}"
         fi
-        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
+        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE_VAL}" | jq -r '.value')
 
         # This will start failing once the invite code expires, which is why we have the login guard.
         if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v="${VERBOSITY}"; then
