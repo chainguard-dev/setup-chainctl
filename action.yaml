@@ -78,6 +78,10 @@ inputs:
   apk-host:
     description: |
       The hostname to authenticate against for APK-related authentication.
+
+      Must be a bare hostname, optionally with a port (apk.cgr.dev,
+      apk.example.com:8443). Schemes, paths and shell metacharacters are
+      rejected.
     required: false
     default: apk.cgr.dev
 
@@ -85,6 +89,9 @@ inputs:
     description: |
       The hostname to authenticate against for Chainguard Libraries-related
       authentication.
+
+      Must be a bare hostname, optionally with a port. Schemes, paths and
+      shell metacharacters are rejected.
     required: false
     default: libraries.cgr.dev
 
@@ -98,6 +105,27 @@ runs:
   using: "composite"
 
   steps:
+    # apk-host and libraries-host reach two sinks: chainctl arguments, and
+    # the HTTP_AUTH line appended to $GITHUB_ENV. Both are quoted, but a
+    # value carrying a newline would still inject extra variables into the
+    # step environment. Reject anything that is not a bare host[:port] up
+    # front so neither sink is reachable with a crafted value.
+    - name: Validate hostname inputs
+      shell: bash
+      env:
+        APK_HOST: ${{ inputs.apk-host }}
+        LIBRARIES_HOST: ${{ inputs.libraries-host }}
+      run: |
+        host_re='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]+)?$'
+        for var in APK_HOST LIBRARIES_HOST; do
+          # The value is never echoed back: it is caller-supplied and could
+          # carry workflow commands that the runner would interpret.
+          if [[ ! "${!var}" =~ ${host_re} ]]; then
+            echo "::error::Invalid ${var}: expected a bare hostname such as apk.cgr.dev, optionally with a :port"
+            exit 1
+          fi
+        done
+
     - name: Install chainctl
       shell: bash
       env:
@@ -247,7 +275,16 @@ runs:
 
         if [ "${EXPORT_AUTH}" == "true" ]; then
           echo "::group::Exporting HTTP_AUTH environment variable for ${APK_HOST}"
-          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "${APK_HOST}")" >> $GITHUB_ENV
+          # Capture the token so it can be masked before it lands in
+          # $GITHUB_ENV; otherwise anything that later prints HTTP_AUTH
+          # leaks it into the logs unredacted.
+          token=$(chainctl auth token --audience "${APK_HOST}")
+          if [[ -z "${token}" ]]; then
+            echo "::error::Unable to mint an APK token for ${APK_HOST}."
+            exit 1
+          fi
+          echo "::add-mask::${token}"
+          echo "HTTP_AUTH=basic:${APK_HOST}:user:${token}" >> "$GITHUB_ENV"
           echo "::endgroup::"
         fi
 
@@ -268,7 +305,7 @@ runs:
         if [[ -z "${AUDIENCE}" ]]; then
           AUDIENCE="issuer.${ENVIRONMENT}"
         fi
-        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE_VAL}" | jq -r '.value')
+        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
 
         # This will start failing once the invite code expires, which is why we have the login guard.
         if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v="${VERBOSITY}"; then
@@ -278,7 +315,13 @@ runs:
           exit 1
         fi
         if [ "${EXPORT_AUTH}" == "true" ]; then
-          echo HTTP_AUTH="basic:${APK_HOST}:user:$(chainctl auth token --audience "${APK_HOST}")" >> $GITHUB_ENV
+          token=$(chainctl auth token --audience "${APK_HOST}")
+          if [[ -z "${token}" ]]; then
+            echo "::error::Unable to mint an APK token for ${APK_HOST}."
+            exit 1
+          fi
+          echo "::add-mask::${token}"
+          echo "HTTP_AUTH=basic:${APK_HOST}:user:${token}" >> "$GITHUB_ENV"
         fi
 
     - if: ${{ inputs.setup-python-keyring == 'true' }}

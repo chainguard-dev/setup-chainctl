@@ -86,9 +86,87 @@ jobs:
           retry-all-errors: 'false'
           setup-python-keyring: 'true'
           version: '0.2.313'
+          # A non-default but well-formed host must pass validation.
+          apk-host: 'apk.example.com:8443'
+          libraries-host: 'libraries.example.com'
       - run: chainctl version
       - run: chainctl version 2>&1 | grep -E 'GitVersion:[[:space:]]+0\.2\.313'
       - run: python -m pip show keyrings-chainguard-libraries
+
+  test-host-validation:
+    name: Test malformed host inputs are rejected
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            *.blob.core.windows.net:443
+            *.githubapp.com:443
+            c.pki.goog:80
+            dl.enforce.dev:443
+            github.com:443
+            o.pki.goog:80
+            ocsp.pki.goog:80
+            ocsp.sectigo.com:80
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The shell metacharacter case from the original report.
+      - id: metachars
+        continue-on-error: true
+        uses: ./
+        with:
+          apk-host: 'apk.cgr.dev; touch /tmp/pwned'
+
+      # The newline case: with validation removed and env-auth on, this
+      # value appends a second assignment to $GITHUB_ENV.
+      - id: newline
+        continue-on-error: true
+        uses: ./
+        with:
+          apk-host: "apk.cgr.dev\nINJECTED=1"
+
+      - id: libraries
+        continue-on-error: true
+        uses: ./
+        with:
+          libraries-host: 'libraries.cgr.dev$(id)'
+
+      - name: Assert every malformed host failed the action
+        env:
+          METACHARS_OUTCOME: ${{ steps.metachars.outcome }}
+          NEWLINE_OUTCOME: ${{ steps.newline.outcome }}
+          LIBRARIES_OUTCOME: ${{ steps.libraries.outcome }}
+        run: |
+          status=0
+          for var in METACHARS_OUTCOME NEWLINE_OUTCOME LIBRARIES_OUTCOME; do
+            if [[ "${!var}" != "failure" ]]; then
+              echo "::error::${var} was ${!var}, expected failure"
+              status=1
+            fi
+          done
+          # Backstops: these only fire if validation is later dropped and a
+          # step interpolates the raw input again.
+          if [[ -e /tmp/pwned ]]; then
+            echo "::error::command injection succeeded: /tmp/pwned exists"
+            status=1
+          fi
+          if [[ -n "${INJECTED:-}" ]]; then
+            echo "::error::env injection succeeded: INJECTED is set"
+            status=1
+          fi
+          exit "${status}"
 
   test-windows-hash-fallback:
     name: Test PowerShell hash fallback parity
