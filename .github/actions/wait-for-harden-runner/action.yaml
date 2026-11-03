@@ -1,0 +1,46 @@
+# Copyright 2026 Chainguard, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "Wait for harden-runner (Windows)"
+description: |
+  Test-only workaround for a startup race in harden-runner's Windows agent
+  (seen with v2.22.3). The harden-runner step returns several seconds
+  before the agent is enforcing, and the agent points system DNS at its
+  proxy about a second before the proxy has upstream servers. Lookups in
+  that gap fail and Windows caches the failure. That can make downloads
+  fail and keep the runner from reporting job completion, leaving the job
+  stuck after all steps pass.
+
+  Wait until DNS points at the proxy and a lookup through it succeeds,
+  then clear the DNS cache. Remove once harden-runner waits for its agent.
+
+inputs:
+  probe-host:
+    description: An allowed hostname to resolve through the proxy.
+    required: false
+    default: github.com
+
+runs:
+  using: "composite"
+  steps:
+    - name: Wait for the harden-runner DNS proxy
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        PROBE_HOST: ${{ inputs.probe-host }}
+      run: |
+        for ($i = 0; $i -lt 60; $i++) {
+          $servers = (Get-DnsClientServerAddress -AddressFamily IPv4).ServerAddresses
+          if ($servers -contains '127.0.0.1') {
+            Clear-DnsClientCache
+            $answer = Resolve-DnsName -Name $env:PROBE_HOST -DnsOnly -QuickTimeout -ErrorAction SilentlyContinue
+            if ($answer) {
+              # Drop any failed lookups cached before the proxy was ready.
+              Clear-DnsClientCache
+              Write-Output "harden-runner DNS proxy ready after ${i}s"
+              exit 0
+            }
+          }
+          Start-Sleep -Seconds 1
+        }
+        Write-Output "::warning::harden-runner DNS proxy not ready after 60s; continuing"
