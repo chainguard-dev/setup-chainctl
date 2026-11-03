@@ -44,10 +44,13 @@ jobs:
             ocsp.sectigo.com:80
             updates.cdn-apple.com:443
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Works around a harden-runner Windows startup race; see
+      # .github/actions/wait-for-harden-runner. No-op on Linux/macOS.
+      - uses: $/.github/actions/wait-for-harden-runner
         with:
-          persist-credentials: false
-      - uses: ./
+          probe-host: dl.enforce.dev
+
+      - uses: $/
       - run: chainctl version
 
   test-options:
@@ -78,10 +81,7 @@ jobs:
             pypi.org:443
             updates.cdn-apple.com:443
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           retry-all-errors: 'false'
           setup-python-keyring: 'true'
@@ -94,7 +94,7 @@ jobs:
       - run: python -m pip show keyrings-chainguard-libraries
 
   test-host-validation:
-    name: Test malformed host inputs are rejected
+    name: Test malformed inputs are rejected
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -118,14 +118,11 @@ jobs:
             ocsp.pki.goog:80
             ocsp.sectigo.com:80
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       # The shell metacharacter case from the original report.
       - id: metachars
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           apk-host: 'apk.cgr.dev; touch /tmp/pwned'
 
@@ -133,24 +130,48 @@ jobs:
       # value appends a second assignment to $GITHUB_ENV.
       - id: newline
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           apk-host: "apk.cgr.dev\nINJECTED=1"
 
       - id: libraries
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           libraries-host: 'libraries.cgr.dev$(id)'
 
-      - name: Assert every malformed host failed the action
+      # environment and version feed the download URL; a crafted value
+      # must not be able to redirect the download elsewhere.
+      - id: environment
+        continue-on-error: true
+        uses: $/
+        with:
+          environment: 'evil.example/x?'
+
+      - id: version
+        continue-on-error: true
+        uses: $/
+        with:
+          version: '../../evil/latest'
+
+      - id: verbosity
+        continue-on-error: true
+        uses: $/
+        with:
+          verbosity: '1; id'
+
+      - name: Assert every malformed input failed the action
         env:
           METACHARS_OUTCOME: ${{ steps.metachars.outcome }}
           NEWLINE_OUTCOME: ${{ steps.newline.outcome }}
           LIBRARIES_OUTCOME: ${{ steps.libraries.outcome }}
+          ENVIRONMENT_OUTCOME: ${{ steps.environment.outcome }}
+          VERSION_OUTCOME: ${{ steps.version.outcome }}
+          VERBOSITY_OUTCOME: ${{ steps.verbosity.outcome }}
         run: |
           status=0
-          for var in METACHARS_OUTCOME NEWLINE_OUTCOME LIBRARIES_OUTCOME; do
+          for var in METACHARS_OUTCOME NEWLINE_OUTCOME LIBRARIES_OUTCOME \
+                     ENVIRONMENT_OUTCOME VERSION_OUTCOME VERBOSITY_OUTCOME; do
             if [[ "${!var}" != "failure" ]]; then
               echo "::error::${var} was ${!var}, expected failure"
               status=1
@@ -191,6 +212,10 @@ jobs:
             o.pki.goog:80
             ocsp.pki.goog:80
             ocsp.sectigo.com:80
+
+      # Works around a harden-runner Windows startup race; see
+      # .github/actions/wait-for-harden-runner.
+      - uses: $/.github/actions/wait-for-harden-runner
 
       # The action's PowerShell fallback never runs on hosted runners
       # (Git Bash provides sha256sum), so exercise the exact fallback
