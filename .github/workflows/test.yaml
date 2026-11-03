@@ -229,6 +229,24 @@ jobs:
             ocsp.pki.goog:80
             ocsp.sectigo.com:80
 
+      # Same harden-runner startup race as in the Basic Test job. This job
+      # is fast enough that the Post step stops the agent mid-setup, which
+      # can leave its egress filter on and keep the job from ever reporting
+      # completion. Wait for the agent to finish starting first.
+      - name: Wait for harden-runner agent (Windows)
+        shell: pwsh
+        run: |
+          for ($i = 0; $i -lt 60; $i++) {
+            $servers = (Get-DnsClientServerAddress -AddressFamily IPv4).ServerAddresses
+            if ($servers -contains '127.0.0.1') {
+              Clear-DnsClientCache
+              Write-Output "harden-runner DNS proxy active after ${i}s"
+              exit 0
+            }
+            Start-Sleep -Seconds 1
+          }
+          Write-Output "::warning::harden-runner DNS proxy not detected after 60s; continuing"
+
       # The action's PowerShell fallback never runs on hosted runners
       # (Git Bash provides sha256sum), so exercise the exact fallback
       # pipeline here and require byte-for-byte parity with sha256sum.
