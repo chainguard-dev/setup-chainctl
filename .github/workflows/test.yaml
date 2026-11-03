@@ -44,10 +44,7 @@ jobs:
             ocsp.sectigo.com:80
             updates.cdn-apple.com:443
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./
+      - uses: $/
       - run: chainctl version
 
   test-options:
@@ -78,10 +75,7 @@ jobs:
             pypi.org:443
             updates.cdn-apple.com:443
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           retry-all-errors: 'false'
           setup-python-keyring: 'true'
@@ -118,14 +112,11 @@ jobs:
             ocsp.pki.goog:80
             ocsp.sectigo.com:80
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       # The shell metacharacter case from the original report.
       - id: metachars
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           apk-host: 'apk.cgr.dev; touch /tmp/pwned'
 
@@ -133,13 +124,13 @@ jobs:
       # value appends a second assignment to $GITHUB_ENV.
       - id: newline
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           apk-host: "apk.cgr.dev\nINJECTED=1"
 
       - id: libraries
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           libraries-host: 'libraries.cgr.dev$(id)'
 
@@ -147,19 +138,19 @@ jobs:
       # must not be able to redirect the download elsewhere.
       - id: environment
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           environment: 'evil.example/x?'
 
       - id: version
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           version: '../../evil/latest'
 
       - id: verbosity
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           verbosity: '1; id'
 

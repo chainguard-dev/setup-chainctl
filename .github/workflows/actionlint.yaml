@@ -52,4 +52,7 @@ jobs:
         env:
           SHELLCHECK_OPTS: "--exclude=SC2129"
         with:
-          actionlint_flags: ${{ steps.get_yamls.outputs.files }}
+          # actionlint does not understand the `uses: $/` self-repository
+          # syntax yet (rhysd/actionlint#711). Ignore only that error. The
+          # action word-splits these flags, so the pattern has no spaces.
+          actionlint_flags: '-ignore=action."\$/" ${{ steps.get_yamls.outputs.files }}'
