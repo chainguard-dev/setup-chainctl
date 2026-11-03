@@ -11,8 +11,8 @@ description: |
   fail and keep the runner from reporting job completion, leaving the job
   stuck after all steps pass.
 
-  Wait until DNS points at the proxy and a lookup through it succeeds,
-  then clear the DNS cache. Remove once harden-runner waits for its agent.
+  Wait until DNS points at the proxy and a lookup sent straight to the
+  proxy succeeds, then clear the DNS cache. Remove once harden-runner waits for its agent.
 
 inputs:
   probe-host:
@@ -32,8 +32,10 @@ runs:
         for ($i = 0; $i -lt 60; $i++) {
           $servers = (Get-DnsClientServerAddress -AddressFamily IPv4).ServerAddresses
           if ($servers -contains '127.0.0.1') {
-            Clear-DnsClientCache
-            $answer = Resolve-DnsName -Name $env:PROBE_HOST -DnsOnly -QuickTimeout -ErrorAction SilentlyContinue
+            # Ask the proxy directly. The agent repoints adapters one at a
+            # time, so a normal lookup can succeed via an adapter that still
+            # uses the upstream resolver while the proxy itself is failing.
+            $answer = Resolve-DnsName -Name $env:PROBE_HOST -Server 127.0.0.1 -DnsOnly -QuickTimeout -ErrorAction SilentlyContinue
             if ($answer) {
               # Drop any failed lookups cached before the proxy was ready.
               Clear-DnsClientCache
