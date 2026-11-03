@@ -44,6 +44,28 @@ jobs:
             ocsp.sectigo.com:80
             updates.cdn-apple.com:443
 
+      # On Windows, harden-runner's step returns a few seconds before its
+      # agent redirects DNS to its proxy and turns on the block-all egress
+      # filter. A download started in that gap resolves outside the proxy,
+      # gets no allow rule, and is cut off once the filter is on (retries
+      # then hit the cached DNS answer and stay blocked). Wait for the
+      # redirect, then clear the DNS cache so every lookup goes through
+      # the proxy. Remove this once harden-runner waits for its agent.
+      - name: Wait for harden-runner agent (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          for ($i = 0; $i -lt 60; $i++) {
+            $servers = (Get-DnsClientServerAddress -AddressFamily IPv4).ServerAddresses
+            if ($servers -contains '127.0.0.1') {
+              Clear-DnsClientCache
+              Write-Output "harden-runner DNS proxy active after ${i}s"
+              exit 0
+            }
+            Start-Sleep -Seconds 1
+          }
+          Write-Output "::warning::harden-runner DNS proxy not detected after 60s; continuing"
+
       - uses: $/
       - run: chainctl version
 
