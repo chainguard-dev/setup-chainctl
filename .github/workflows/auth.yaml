@@ -34,8 +34,11 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # No `ref:` on purpose: under pull_request_target the default
+          # checkout is the trusted base commit, never the PR head. Do not
+          # add a PR ref or allow-unsafe-pr-checkout here; this job holds
+          # id-token: write.
           persist-credentials: false
-          allow-unsafe-pr-checkout: true
       - uses: ./
         with:
           identity: ce2d1984a010471142503340d670612d63ffb9f6/d05d31ba65ec54d1

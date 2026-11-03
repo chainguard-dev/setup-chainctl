@@ -110,21 +110,54 @@ runs:
     # value carrying a newline would still inject extra variables into the
     # step environment. Reject anything that is not a bare host[:port] up
     # front so neither sink is reachable with a crafted value.
-    - name: Validate hostname inputs
+    #
+    # environment and version are interpolated into the download URL, so a
+    # crafted value could point the download (and its checksum) at another
+    # host or path. verbosity and identity are passed to chainctl and echoed
+    # into workflow commands. Validate all of them here too.
+    - name: Validate inputs
       shell: bash
       env:
         APK_HOST: ${{ inputs.apk-host }}
         LIBRARIES_HOST: ${{ inputs.libraries-host }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        VERSION: ${{ inputs.version }}
+        VERBOSITY: ${{ inputs.verbosity }}
+        IDENTITY: ${{ inputs.identity }}
       run: |
+        # Values are never echoed back: they are caller-supplied and could
+        # carry workflow commands that the runner would interpret.
         host_re='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]+)?$'
         for var in APK_HOST LIBRARIES_HOST; do
-          # The value is never echoed back: it is caller-supplied and could
-          # carry workflow commands that the runner would interpret.
           if [[ ! "${!var}" =~ ${host_re} ]]; then
             echo "::error::Invalid ${var}: expected a bare hostname such as apk.cgr.dev, optionally with a :port"
             exit 1
           fi
         done
+
+        env_re='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
+        if [[ ! "${ENVIRONMENT}" =~ ${env_re} ]]; then
+          echo "::error::Invalid environment: expected a bare domain such as enforce.dev"
+          exit 1
+        fi
+
+        # Empty means latest; otherwise "latest" or a release such as
+        # 0.2.313 / v0.2.313, optionally with a pre-release suffix.
+        version_re='^(latest|v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$'
+        if [[ -n "${VERSION}" && ! "${VERSION}" =~ ${version_re} ]]; then
+          echo "::error::Invalid version: expected latest or a release such as 0.2.313"
+          exit 1
+        fi
+
+        if [[ ! "${VERBOSITY}" =~ ^[0-5]$ ]]; then
+          echo "::error::Invalid verbosity: expected an integer from 0 to 5"
+          exit 1
+        fi
+
+        if [[ "${IDENTITY}" =~ [[:space:][:cntrl:]] ]]; then
+          echo "::error::Invalid identity: must not contain whitespace or control characters"
+          exit 1
+        fi
 
     - name: Install chainctl
       shell: bash
@@ -166,7 +199,8 @@ runs:
         checksums_url="${base_url}/chainctl_checksums.txt"
         url="${base_url}/${file}"
 
-        curl_flags=(-fsL --retry 5 --retry-delay 1)
+        # Refuse plain HTTP, including on redirects, and old TLS versions.
+        curl_flags=(-fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 --retry 5 --retry-delay 1)
         if [[ "${CURL_RETRY_ALL_ERRORS}" == "true" ]]; then
           curl_flags+=(--retry-all-errors)
         fi
@@ -305,7 +339,21 @@ runs:
         if [[ -z "${AUDIENCE}" ]]; then
           AUDIENCE="issuer.${ENVIRONMENT}"
         fi
-        IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=${AUDIENCE}" | jq -r '.value')
+        if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+          echo "::error::No OIDC token available; grant the job 'id-token: write' permission."
+          exit 1
+        fi
+        # URL-encode the audience so it cannot add extra query parameters.
+        encoded_audience=$(jq -rn --arg a "${AUDIENCE}" '$a | @uri')
+        IDTOKEN=$(curl -fsS --proto '=https' --tlsv1.2 \
+          -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encoded_audience}" | jq -r '.value // empty')
+        if [[ -z "${IDTOKEN}" ]]; then
+          echo "::error::Unable to fetch a GitHub OIDC token."
+          exit 1
+        fi
+        # The runner does not mask OIDC tokens fetched by hand.
+        echo "::add-mask::${IDTOKEN}"
 
         # This will start failing once the invite code expires, which is why we have the login guard.
         if chainctl auth login --create-group=false --identity-token "${IDTOKEN}" --invite-code="${CHAINGUARD_INVITE_CODE}" -v="${VERBOSITY}"; then
@@ -328,4 +376,7 @@ runs:
       name: Install Python keyring package
       shell: bash
       run: |
-        python -m pip install "keyrings-chainguard-libraries==0.2.0"
+        # Install the published wheel only, so no sdist build code runs.
+        python -m pip install --disable-pip-version-check --no-input \
+          --only-binary=keyrings-chainguard-libraries \
+          "keyrings-chainguard-libraries==0.2.0"

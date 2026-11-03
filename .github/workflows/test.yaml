@@ -94,7 +94,7 @@ jobs:
       - run: python -m pip show keyrings-chainguard-libraries
 
   test-host-validation:
-    name: Test malformed host inputs are rejected
+    name: Test malformed inputs are rejected
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -143,14 +143,38 @@ jobs:
         with:
           libraries-host: 'libraries.cgr.dev$(id)'
 
-      - name: Assert every malformed host failed the action
+      # environment and version feed the download URL; a crafted value
+      # must not be able to redirect the download elsewhere.
+      - id: environment
+        continue-on-error: true
+        uses: ./
+        with:
+          environment: 'evil.example/x?'
+
+      - id: version
+        continue-on-error: true
+        uses: ./
+        with:
+          version: '../../evil/latest'
+
+      - id: verbosity
+        continue-on-error: true
+        uses: ./
+        with:
+          verbosity: '1; id'
+
+      - name: Assert every malformed input failed the action
         env:
           METACHARS_OUTCOME: ${{ steps.metachars.outcome }}
           NEWLINE_OUTCOME: ${{ steps.newline.outcome }}
           LIBRARIES_OUTCOME: ${{ steps.libraries.outcome }}
+          ENVIRONMENT_OUTCOME: ${{ steps.environment.outcome }}
+          VERSION_OUTCOME: ${{ steps.version.outcome }}
+          VERBOSITY_OUTCOME: ${{ steps.verbosity.outcome }}
         run: |
           status=0
-          for var in METACHARS_OUTCOME NEWLINE_OUTCOME LIBRARIES_OUTCOME; do
+          for var in METACHARS_OUTCOME NEWLINE_OUTCOME LIBRARIES_OUTCOME \
+                     ENVIRONMENT_OUTCOME VERSION_OUTCOME VERBOSITY_OUTCOME; do
             if [[ "${!var}" != "failure" ]]; then
               echo "::error::${var} was ${!var}, expected failure"
               status=1
