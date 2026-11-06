@@ -48,11 +48,12 @@ jobs:
           echo "files=${yamls[*]}" >> "${GITHUB_OUTPUT}"
 
       - name: Action lint
-        uses: step-security/action-actionlint@b2b21b6e020989da8beae86d6c3a1291c46d45d5 # v1.76.0
+        uses: chainguard-actions/reviewdog-action-actionlint@7fdc349a3d37b6ea23d25c799de469d96bef3068 # v1.79.1
         env:
           SHELLCHECK_OPTS: "--exclude=SC2129"
         with:
-          # actionlint does not understand the `uses: $/` self-repository
-          # syntax yet (rhysd/actionlint#711). Ignore only that error. The
-          # action word-splits these flags, so the pattern has no spaces.
-          actionlint_flags: '-ignore=action."\$/ ${{ steps.get_yamls.outputs.files }}'
+          # actionlint does not accept a bare `uses: $/` self-repository
+          # reference yet (rhysd/actionlint#711). Ignore only that error. The
+          # action's entrypoint passes these flags through `eval`, so the
+          # pattern is single-quoted to keep its `"` and `\$` literal.
+          actionlint_flags: '-ignore=''action."\$/'' ${{ steps.get_yamls.outputs.files }}'
